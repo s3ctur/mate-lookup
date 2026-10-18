@@ -175,7 +175,7 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
 
     <label class="scan" for="cam">
       <span class="scan-bar"><span>Scan card name</span><span class="scan-pip" aria-hidden="true"></span></span>
-      <span class="scan-hint">Take a photo, then box the name.</span>
+      <span class="scan-hint">Take a photo, then box just the name text. Quicker option: tap the search box and use iOS Scan Text.</span>
       <input id="cam" class="vh" type="file" accept="image/*" capture="environment">
     </label>
 
@@ -183,7 +183,7 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
   </section>
 
   <section id="crop" class="crop" hidden>
-    <p class="crop-help">Drag a box around the card name only.</p>
+    <p class="crop-help">Drag a tight box around the name text. Leave out the frame and art.</p>
     <canvas id="cropCanvas"></canvas>
     <div class="row">
       <button id="retake" class="btn ghost" type="button">Retake</button>
@@ -587,12 +587,13 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
   }
   function warmOcr() { getWorker().catch(() => {}); }
 
-  // Crop from the full-resolution photo, normalise contrast, flip light-on-dark text
-  function prepCrop() {
+  // Crop from the full-resolution photo and build two cleaned-up versions:
+  // a contrast-stretched greyscale and a hard black/white (Otsu) version.
+  function prepVariants() {
     const s = photo.naturalWidth / cssW;
     const sx = rect.x * s, sy = rect.y * s, sw = rect.w * s, sh = rect.h * s;
-    let k = 110 / sh;
-    if (sw * k > 2000) k = 2000 / sw;
+    let k = 140 / sh;
+    if (sw * k > 2400) k = 2400 / sw;
     const w = Math.max(1, Math.round(sw * k)), h = Math.max(1, Math.round(sh * k));
 
     const tmp = document.createElement('canvas');
@@ -600,33 +601,57 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
     const tctx = tmp.getContext('2d', { willReadFrequently: true });
     tctx.imageSmoothingQuality = 'high';
     tctx.drawImage(photo, sx, sy, sw, sh, 0, 0, w, h);
-    const id = tctx.getImageData(0, 0, w, h);
-    const d = id.data;
+    const src = tctx.getImageData(0, 0, w, h).data;
+
+    const n = w * h;
+    const lum = new Float32Array(n);
     let min = 255, max = 0, sum = 0;
-    const lum = new Float32Array(w * h);
-    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-      const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    for (let i = 0, p = 0; p < n; i += 4, p++) {
+      const v = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
       lum[p] = v; sum += v;
       if (v < min) min = v;
       if (v > max) max = v;
     }
-    const invert = sum / lum.length < 110;
+    const invert = sum / n < 110; // light text on a dark bar
     const range = Math.max(1, max - min);
-    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const grey = new Uint8ClampedArray(n);
+    const hist = new Uint32Array(256);
+    for (let p = 0; p < n; p++) {
       let v = ((lum[p] - min) / range) * 255;
       if (invert) v = 255 - v;
-      d[i] = d[i + 1] = d[i + 2] = v;
+      grey[p] = v;
+      hist[grey[p]]++;
     }
-    tctx.putImageData(id, 0, 0);
+    // Otsu threshold
+    let total = 0;
+    for (let t = 0; t < 256; t++) total += t * hist[t];
+    let sumB = 0, wB = 0, best = 0, thresh = 128;
+    for (let t = 0; t < 256; t++) {
+      wB += hist[t]; if (!wB) continue;
+      const wF = n - wB; if (!wF) break;
+      sumB += t * hist[t];
+      const mB = sumB / wB, mF = (total - sumB) / wF;
+      const between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > best) { best = between; thresh = t; }
+    }
 
-    const pad = 16;
-    const out = document.createElement('canvas');
-    out.width = w + pad * 2; out.height = h + pad * 2;
-    const octx = out.getContext('2d');
-    octx.fillStyle = '#fff';
-    octx.fillRect(0, 0, out.width, out.height);
-    octx.drawImage(tmp, pad, pad);
-    return out;
+    const make = (fn) => {
+      const pad = 20;
+      const c = document.createElement('canvas');
+      c.width = w + pad * 2; c.height = h + pad * 2;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, c.width, c.height);
+      const img = ctx.createImageData(w, h);
+      for (let p = 0, i = 0; p < n; p++, i += 4) {
+        const v = fn(grey[p]);
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+        img.data[i + 3] = 255;
+      }
+      ctx.putImageData(img, pad, pad);
+      return c;
+    };
+    return [make((v) => v), make((v) => (v > thresh ? 255 : 0))];
   }
 
   function cleanOcr(t) {
@@ -637,30 +662,74 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
       .trim();
   }
 
+  // Turn one OCR result into a few plausible card names, best guess first
+  function candidatesFrom(data) {
+    const out = [];
+    const add = (s) => { s = cleanOcr(s); if (s.length >= 4 && !out.includes(s)) out.push(s); };
+    const words = (data.words || []).filter((x) => x.confidence >= 55).map((x) => x.text);
+    if (words.length) add(words.join(' '));
+    const raw = cleanOcr(data.text);
+    add(raw);
+    // Drop stray 1-2 letter fragments, keeping real short words
+    const keep = new Set(['of', 'the', 'to', 'a', 'an', 'in', 'on', 'at', 'and', 'or', 'from', 'with']);
+    add(raw.split(' ').filter((t) => t.replace(/[,'\-]/g, '').length > 2 || keep.has(t.toLowerCase())).join(' '));
+    // Longest run of solid words
+    const runs = raw.split(' ').reduce((acc, t) => {
+      if (t.replace(/[,'\-]/g, '').length > 2) acc[acc.length - 1].push(t); else acc.push([]);
+      return acc;
+    }, [[]]);
+    runs.sort((a, b) => b.join(' ').length - a.join(' ').length);
+    if (runs[0]) add(runs[0].join(' '));
+    return out;
+  }
+
+  async function fuzzy(name) {
+    try { return await sf('/cards/named?fuzzy=' + encodeURIComponent(name)); } catch (_) { return null; }
+  }
+
   readBtn.addEventListener('click', async () => {
     if (!rect) return;
     readBtn.disabled = true;
     setStatus(worker ? 'Reading the name\u2026' : 'Loading text reader (first time only)\u2026');
-    let text = '';
+    const tried = [];
+    let firstGuess = '';
     try {
-      const canvas = prepCrop();
+      const variants = prepVariants();
       const w = await getWorker();
       setStatus('Reading the name\u2026');
-      const { data } = await w.recognize(canvas);
-      text = cleanOcr(data.text);
+      // Cheapest pass first; stop as soon as Scryfall recognises a name
+      const passes = [['7', variants[0]], ['7', variants[1]], ['6', variants[1]], ['6', variants[0]]];
+      for (const [psm, canvas] of passes) {
+        await w.setParameters({ tessedit_pageseg_mode: psm });
+        const { data } = await w.recognize(canvas);
+        for (const cand of candidatesFrom(data)) {
+          if (tried.includes(cand)) continue;
+          if (!firstGuess) firstGuess = cand;
+          tried.push(cand);
+          const card = await fuzzy(cand);
+          if (card) {
+            crop.hidden = true;
+            q.value = card.name;
+            await loadPrintings(card.name);
+            return;
+          }
+          await sleep(80);
+          if (tried.length >= 8) break;
+        }
+        if (tried.length >= 8) break;
+      }
     } catch (_) {
       setStatus('The text reader didn\u2019t load. Check your connection, or type the name instead.', 'error');
       readBtn.disabled = false;
       return;
     }
-    if (text.length < 3) {
-      setStatus('Couldn\u2019t read a name. Box just the name, or tilt the card to cut glare.', 'error');
-      readBtn.disabled = false;
+    readBtn.disabled = false;
+    if (!firstGuess) {
+      setStatus('Couldn\u2019t read a name. Box just the name text, or tilt the card to cut glare.', 'error');
       return;
     }
     crop.hidden = true;
-    q.value = text;
-    await resolveName(text);
+    await resolveName(firstGuess);
   });
 
   renderRecent();

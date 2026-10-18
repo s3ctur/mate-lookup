@@ -22,9 +22,6 @@
   --line: #D3D9E0;
   --accent: #1F7A4D;
   --accent-ink: #FFFFFF;
-  --bar-top: #F7F4EC;
-  --bar-bottom: #E3DCCB;
-  --bar-edge: #8C8270;
   --error: #A23B2A;
   color-scheme: light;
   box-sizing: border-box;
@@ -40,9 +37,6 @@
     --line: #2E3742;
     --accent: #4CC38A;
     --accent-ink: #0E1A14;
-    --bar-top: #3A3A34;
-    --bar-bottom: #2A2A25;
-    --bar-edge: #6E6858;
     --error: #F08A76;
     color-scheme: dark;
   }
@@ -90,29 +84,8 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
 }
 .suggest button:active, .suggest button:focus-visible { background: var(--bg); outline: none; }
 
-/* The scan button is drawn as a card's name bar */
-.scan {
-  display: block; margin-top: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent;
-}
-.scan-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 18px;
-  border-radius: 14px / 50%;
-  background: linear-gradient(var(--bar-top), var(--bar-bottom));
-  border: 2px solid var(--bar-edge);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 2px 0 var(--bar-edge);
-  font-weight: 700; font-size: 1.15rem;
-  transition: transform .08s ease;
-}
-.scan:active .scan-bar { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.5); }
-.scan-pip {
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--accent); border: 2px solid var(--bar-edge);
-}
-.scan-hint { display: block; margin: 6px 4px 0; color: var(--muted); font-size: .9rem; }
-.scan:focus-within .scan-bar { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.status { min-height: 1.45em; margin: 14px 2px 0; color: var(--muted); }
+.status { min-height: 1.45em; margin: 10px 2px 0; color: var(--muted); }
 .status[data-kind="error"] { color: var(--error); }
 
 .btn {
@@ -126,11 +99,6 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
 .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
 .btn:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.crop { margin-top: 18px; }
-.crop-help { margin: 0 0 8px; }
-#cropCanvas { display: block; margin: 0 auto; touch-action: none; border-radius: 8px; max-width: 100%; }
-.row { display: flex; gap: 10px; margin-top: 12px; }
-.row .btn { flex: 1; }
 
 #results, #recentWrap { margin-top: 28px; }
 .res-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
@@ -164,7 +132,7 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
 <body>
 <main>
   <h1>Mate Lookup</h1>
-  <p class="sub">Card name to MTG Mate price page.</p>
+  <p class="sub">Tap the search box, then Scan Text to read a card name with the camera.</p>
 
   <section>
     <label for="q" class="vh">Card name</label>
@@ -173,22 +141,7 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
       <ul id="suggest" class="suggest" hidden></ul>
     </div>
 
-    <label class="scan" for="cam">
-      <span class="scan-bar"><span>Scan card name</span><span class="scan-pip" aria-hidden="true"></span></span>
-      <span class="scan-hint">Take a photo, then box just the name text. Quicker option: tap the search box and use iOS Scan Text.</span>
-      <input id="cam" class="vh" type="file" accept="image/*" capture="environment">
-    </label>
-
     <p id="status" class="status" role="status" aria-live="polite"></p>
-  </section>
-
-  <section id="crop" class="crop" hidden>
-    <p class="crop-help">Drag a tight box around the name text. Leave out the frame and art.</p>
-    <canvas id="cropCanvas"></canvas>
-    <div class="row">
-      <button id="retake" class="btn ghost" type="button">Retake</button>
-      <button id="read" class="btn primary" type="button" disabled>Read name</button>
-    </div>
   </section>
 
   <section id="results" hidden>
@@ -214,7 +167,6 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
   </section>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
 <script>
 (() => {
   const SF = 'https://api.scryfall.com';
@@ -222,8 +174,7 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
   const RECENT_KEY = 'mateLookup.recent';
   const $ = (id) => document.getElementById(id);
 
-  const q = $('q'), suggest = $('suggest'), cam = $('cam'), statusEl = $('status');
-  const crop = $('crop'), cv = $('cropCanvas'), readBtn = $('read'), retakeBtn = $('retake');
+  const q = $('q'), suggest = $('suggest'), statusEl = $('status');
   const results = $('results'), resName = $('resName'), resSearch = $('resSearch');
   const resTools = $('resTools'), filterEl = $('filter'), sortBtn = $('sort'), countEl = $('count'), printsEl = $('prints');
   const recentWrap = $('recentWrap'), recentEl = $('recent'), clearRecentBtn = $('clearRecent');
@@ -474,263 +425,6 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
     });
   }
   clearRecentBtn.addEventListener('click', () => { saveRecent([]); renderRecent(); });
-
-  /* ---------- Photo and crop ---------- */
-  let photo = null, base = null, cssW = 0, cssH = 0, rect = null, dragStart = null;
-
-  cam.addEventListener('change', async () => {
-    const file = cam.files && cam.files[0];
-    if (!file) return;
-    const im = new Image();
-    im.src = URL.createObjectURL(file);
-    try { await im.decode(); } catch (_) {
-      setStatus('Couldn\u2019t open that photo. Try again.', 'error');
-      return;
-    } finally { cam.value = ''; }
-    if (photo) URL.revokeObjectURL(photo.src);
-    photo = im;
-    rect = null;
-    readBtn.disabled = true;
-    setStatus('');
-    crop.hidden = false;
-    layoutCrop();
-    crop.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    warmOcr();
-  });
-
-  retakeBtn.addEventListener('click', () => cam.click());
-
-  function layoutCrop() {
-    const maxW = crop.clientWidth || 360;
-    const maxH = Math.round(window.innerHeight * 0.62);
-    const s = Math.min(maxW / photo.naturalWidth, maxH / photo.naturalHeight);
-    cssW = Math.round(photo.naturalWidth * s);
-    cssH = Math.round(photo.naturalHeight * s);
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    cv.style.width = cssW + 'px';
-    cv.style.height = cssH + 'px';
-    cv.width = Math.round(cssW * dpr);
-    cv.height = Math.round(cssH * dpr);
-    // Pre-scale once so redraws during dragging stay smooth
-    base = document.createElement('canvas');
-    base.width = cv.width;
-    base.height = cv.height;
-    base.getContext('2d').drawImage(photo, 0, 0, base.width, base.height);
-    redraw();
-  }
-
-  function redraw() {
-    const ctx = cv.getContext('2d');
-    const k = cv.width / cssW;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(base, 0, 0);
-    if (!rect || rect.w < 2 || rect.h < 2) return;
-    ctx.setTransform(k, 0, 0, k, 0, 0);
-    ctx.beginPath();
-    ctx.rect(0, 0, cssW, cssH);
-    ctx.rect(rect.x, rect.y, rect.w, rect.h);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fill('evenodd');
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#1F7A4D';
-    ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-  }
-
-  function pt(e) {
-    const b = cv.getBoundingClientRect();
-    return {
-      x: Math.max(0, Math.min(b.width, e.clientX - b.left)),
-      y: Math.max(0, Math.min(b.height, e.clientY - b.top)),
-    };
-  }
-  cv.addEventListener('pointerdown', (e) => {
-    cv.setPointerCapture(e.pointerId);
-    dragStart = pt(e);
-    rect = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 };
-    redraw();
-  });
-  cv.addEventListener('pointermove', (e) => {
-    if (!dragStart) return;
-    const p = pt(e);
-    rect = {
-      x: Math.min(p.x, dragStart.x), y: Math.min(p.y, dragStart.y),
-      w: Math.abs(p.x - dragStart.x), h: Math.abs(p.y - dragStart.y),
-    };
-    redraw();
-  });
-  const endDrag = () => {
-    dragStart = null;
-    readBtn.disabled = !(rect && rect.w > 15 && rect.h > 6);
-  };
-  cv.addEventListener('pointerup', endDrag);
-  cv.addEventListener('pointercancel', endDrag);
-  window.addEventListener('resize', () => { if (photo && !crop.hidden) { rect = null; readBtn.disabled = true; layoutCrop(); } });
-
-  /* ---------- OCR ---------- */
-  let worker = null, workerLoading = null;
-  function getWorker() {
-    if (worker) return Promise.resolve(worker);
-    if (!workerLoading) {
-      workerLoading = (async () => {
-        if (!window.Tesseract) throw new Error('OCR library not loaded');
-        const w = await Tesseract.createWorker('eng', 1);
-        await w.setParameters({
-          tessedit_pageseg_mode: '7', // a single line of text
-          tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ,'-",
-          preserve_interword_spaces: '1',
-        });
-        worker = w;
-        return w;
-      })().catch((e) => { workerLoading = null; throw e; });
-    }
-    return workerLoading;
-  }
-  function warmOcr() { getWorker().catch(() => {}); }
-
-  // Crop from the full-resolution photo and build two cleaned-up versions:
-  // a contrast-stretched greyscale and a hard black/white (Otsu) version.
-  function prepVariants() {
-    const s = photo.naturalWidth / cssW;
-    const sx = rect.x * s, sy = rect.y * s, sw = rect.w * s, sh = rect.h * s;
-    let k = 140 / sh;
-    if (sw * k > 2400) k = 2400 / sw;
-    const w = Math.max(1, Math.round(sw * k)), h = Math.max(1, Math.round(sh * k));
-
-    const tmp = document.createElement('canvas');
-    tmp.width = w; tmp.height = h;
-    const tctx = tmp.getContext('2d', { willReadFrequently: true });
-    tctx.imageSmoothingQuality = 'high';
-    tctx.drawImage(photo, sx, sy, sw, sh, 0, 0, w, h);
-    const src = tctx.getImageData(0, 0, w, h).data;
-
-    const n = w * h;
-    const lum = new Float32Array(n);
-    let min = 255, max = 0, sum = 0;
-    for (let i = 0, p = 0; p < n; i += 4, p++) {
-      const v = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
-      lum[p] = v; sum += v;
-      if (v < min) min = v;
-      if (v > max) max = v;
-    }
-    const invert = sum / n < 110; // light text on a dark bar
-    const range = Math.max(1, max - min);
-    const grey = new Uint8ClampedArray(n);
-    const hist = new Uint32Array(256);
-    for (let p = 0; p < n; p++) {
-      let v = ((lum[p] - min) / range) * 255;
-      if (invert) v = 255 - v;
-      grey[p] = v;
-      hist[grey[p]]++;
-    }
-    // Otsu threshold
-    let total = 0;
-    for (let t = 0; t < 256; t++) total += t * hist[t];
-    let sumB = 0, wB = 0, best = 0, thresh = 128;
-    for (let t = 0; t < 256; t++) {
-      wB += hist[t]; if (!wB) continue;
-      const wF = n - wB; if (!wF) break;
-      sumB += t * hist[t];
-      const mB = sumB / wB, mF = (total - sumB) / wF;
-      const between = wB * wF * (mB - mF) * (mB - mF);
-      if (between > best) { best = between; thresh = t; }
-    }
-
-    const make = (fn) => {
-      const pad = 20;
-      const c = document.createElement('canvas');
-      c.width = w + pad * 2; c.height = h + pad * 2;
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, c.width, c.height);
-      const img = ctx.createImageData(w, h);
-      for (let p = 0, i = 0; p < n; p++, i += 4) {
-        const v = fn(grey[p]);
-        img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-        img.data[i + 3] = 255;
-      }
-      ctx.putImageData(img, pad, pad);
-      return c;
-    };
-    return [make((v) => v), make((v) => (v > thresh ? 255 : 0))];
-  }
-
-  function cleanOcr(t) {
-    return (t || '')
-      .replace(/\s+/g, ' ')
-      .replace(/[^A-Za-z ,'\-]/g, '')
-      .replace(/^[ ,'\-]+|[ ,'\-]+$/g, '')
-      .trim();
-  }
-
-  // Turn one OCR result into a few plausible card names, best guess first
-  function candidatesFrom(data) {
-    const out = [];
-    const add = (s) => { s = cleanOcr(s); if (s.length >= 4 && !out.includes(s)) out.push(s); };
-    const words = (data.words || []).filter((x) => x.confidence >= 55).map((x) => x.text);
-    if (words.length) add(words.join(' '));
-    const raw = cleanOcr(data.text);
-    add(raw);
-    // Drop stray 1-2 letter fragments, keeping real short words
-    const keep = new Set(['of', 'the', 'to', 'a', 'an', 'in', 'on', 'at', 'and', 'or', 'from', 'with']);
-    add(raw.split(' ').filter((t) => t.replace(/[,'\-]/g, '').length > 2 || keep.has(t.toLowerCase())).join(' '));
-    // Longest run of solid words
-    const runs = raw.split(' ').reduce((acc, t) => {
-      if (t.replace(/[,'\-]/g, '').length > 2) acc[acc.length - 1].push(t); else acc.push([]);
-      return acc;
-    }, [[]]);
-    runs.sort((a, b) => b.join(' ').length - a.join(' ').length);
-    if (runs[0]) add(runs[0].join(' '));
-    return out;
-  }
-
-  async function fuzzy(name) {
-    try { return await sf('/cards/named?fuzzy=' + encodeURIComponent(name)); } catch (_) { return null; }
-  }
-
-  readBtn.addEventListener('click', async () => {
-    if (!rect) return;
-    readBtn.disabled = true;
-    setStatus(worker ? 'Reading the name\u2026' : 'Loading text reader (first time only)\u2026');
-    const tried = [];
-    let firstGuess = '';
-    try {
-      const variants = prepVariants();
-      const w = await getWorker();
-      setStatus('Reading the name\u2026');
-      // Cheapest pass first; stop as soon as Scryfall recognises a name
-      const passes = [['7', variants[0]], ['7', variants[1]], ['6', variants[1]], ['6', variants[0]]];
-      for (const [psm, canvas] of passes) {
-        await w.setParameters({ tessedit_pageseg_mode: psm });
-        const { data } = await w.recognize(canvas);
-        for (const cand of candidatesFrom(data)) {
-          if (tried.includes(cand)) continue;
-          if (!firstGuess) firstGuess = cand;
-          tried.push(cand);
-          const card = await fuzzy(cand);
-          if (card) {
-            crop.hidden = true;
-            q.value = card.name;
-            await loadPrintings(card.name);
-            return;
-          }
-          await sleep(80);
-          if (tried.length >= 8) break;
-        }
-        if (tried.length >= 8) break;
-      }
-    } catch (_) {
-      setStatus('The text reader didn\u2019t load. Check your connection, or type the name instead.', 'error');
-      readBtn.disabled = false;
-      return;
-    }
-    readBtn.disabled = false;
-    if (!firstGuess) {
-      setStatus('Couldn\u2019t read a name. Box just the name text, or tilt the card to cut glare.', 'error');
-      return;
-    }
-    crop.hidden = true;
-    await resolveName(firstGuess);
-  });
 
   renderRecent();
 })();

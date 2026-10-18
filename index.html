@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mate Lookup">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#EDF0F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141920" media="(prefers-color-scheme: dark)">
+<title>Mate Lookup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #EDF0F2;
+  --surface: #FFFFFF;
+  --ink: #18202B;
+  --muted: #5C6675;
+  --line: #D3D9E0;
+  --accent: #1F7A4D;
+  --accent-ink: #FFFFFF;
+  --bar-top: #F7F4EC;
+  --bar-bottom: #E3DCCB;
+  --bar-edge: #8C8270;
+  --error: #A23B2A;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141920;
+    --surface: #1D242D;
+    --ink: #E8ECF0;
+    --muted: #97A1AE;
+    --line: #2E3742;
+    --accent: #4CC38A;
+    --accent-ink: #0E1A14;
+    --bar-top: #3A3A34;
+    --bar-bottom: #2A2A25;
+    --bar-edge: #6E6858;
+    --error: #F08A76;
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: inherit; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Atkinson Hyperlegible", -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 17px;
+  line-height: 1.45;
+}
+main { max-width: 560px; margin: 0 auto; padding: 20px 16px 48px; }
+h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 1.2rem; margin: 0; }
+.sub { margin: 2px 0 20px; color: var(--muted); }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.searchwrap { position: relative; }
+input[type="search"] {
+  width: 100%;
+  font: inherit;
+  font-size: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.suggest {
+  list-style: none; margin: 6px 0 0; padding: 4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  position: absolute; left: 0; right: 0; z-index: 5;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.suggest button {
+  display: block; width: 100%; text-align: left; font: inherit; color: var(--ink);
+  background: none; border: 0; padding: 12px; border-radius: 8px;
+}
+.suggest button:active, .suggest button:focus-visible { background: var(--bg); outline: none; }
+
+/* The scan button is drawn as a card's name bar */
+.scan {
+  display: block; margin-top: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.scan-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px;
+  border-radius: 14px / 50%;
+  background: linear-gradient(var(--bar-top), var(--bar-bottom));
+  border: 2px solid var(--bar-edge);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 2px 0 var(--bar-edge);
+  font-weight: 700; font-size: 1.15rem;
+  transition: transform .08s ease;
+}
+.scan:active .scan-bar { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.5); }
+.scan-pip {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--bar-edge);
+}
+.scan-hint { display: block; margin: 6px 4px 0; color: var(--muted); font-size: .9rem; }
+.scan:focus-within .scan-bar { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.status { min-height: 1.45em; margin: 14px 2px 0; color: var(--muted); }
+.status[data-kind="error"] { color: var(--error); }
+
+.btn {
+  font: inherit; font-weight: 700; border-radius: 10px; padding: 12px 16px;
+  border: 1px solid transparent; text-decoration: none; display: inline-block; text-align: center;
+  cursor: pointer;
+}
+.btn.small { padding: 8px 12px; font-size: .95rem; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary:disabled { opacity: .45; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.crop { margin-top: 18px; }
+.crop-help { margin: 0 0 8px; }
+#cropCanvas { display: block; margin: 0 auto; touch-action: none; border-radius: 8px; max-width: 100%; }
+.row { display: flex; gap: 10px; margin-top: 12px; }
+.row .btn { flex: 1; }
+
+#results, #recentWrap { margin-top: 28px; }
+.res-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.textlink { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
+.btnlink { background: none; border: 0; font: inherit; font-weight: 700; padding: 0; cursor: pointer; }
+.res-tools { display: flex; gap: 8px; margin-top: 12px; }
+.res-tools input { font-size: 16px; padding: 9px 12px; }
+.count { color: var(--muted); font-size: .9rem; margin: 8px 2px 0; }
+
+.prints { list-style: none; margin: 12px 0 0; padding: 0; }
+.print {
+  display: grid; grid-template-columns: 74px 1fr; gap: 12px;
+  padding: 12px 0; border-top: 1px solid var(--line);
+}
+.print img {
+  width: 74px; border-radius: 4px; display: block; cursor: zoom-in;
+  background: var(--line); aspect-ratio: 63 / 88;
+}
+.print.big { grid-template-columns: 1fr; }
+.print.big img { width: 100%; max-width: 340px; cursor: zoom-out; margin: 0 auto; }
+.pset { font-weight: 700; }
+.pmeta { color: var(--muted); font-size: .92rem; }
+.pbtns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+.recent { list-style: none; margin: 10px 0 0; padding: 0; }
+.recent li { padding: 10px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
+.recent a { color: var(--ink); font-weight: 700; text-decoration: none; }
+.recent span { color: var(--muted); font-size: .92rem; white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mate Lookup</h1>
+  <p class="sub">Card name to MTG Mate price page.</p>
+
+  <section>
+    <label for="q" class="vh">Card name</label>
+    <div class="searchwrap">
+      <input id="q" type="search" placeholder="Type a card name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+      <ul id="suggest" class="suggest" hidden></ul>
+    </div>
+
+    <label class="scan" for="cam">
+      <span class="scan-bar"><span>Scan card name</span><span class="scan-pip" aria-hidden="true"></span></span>
+      <span class="scan-hint">Take a photo, then box the name.</span>
+      <input id="cam" class="vh" type="file" accept="image/*" capture="environment">
+    </label>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="crop" class="crop" hidden>
+    <p class="crop-help">Drag a box around the card name only.</p>
+    <canvas id="cropCanvas"></canvas>
+    <div class="row">
+      <button id="retake" class="btn ghost" type="button">Retake</button>
+      <button id="read" class="btn primary" type="button" disabled>Read name</button>
+    </div>
+  </section>
+
+  <section id="results" hidden>
+    <div class="res-head">
+      <h2 id="resName"></h2>
+      <a id="resSearch" class="textlink" target="_blank" rel="noopener">Search MTG Mate</a>
+    </div>
+    <div id="resTools" class="res-tools" hidden>
+      <label for="filter" class="vh">Filter printings</label>
+      <input id="filter" type="search" placeholder="Filter by set, code or year" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button id="sort" class="btn ghost small" type="button">Oldest first</button>
+    </div>
+    <p id="count" class="count"></p>
+    <ol id="prints" class="prints"></ol>
+  </section>
+
+  <section id="recentWrap" hidden>
+    <div class="res-head">
+      <h2>Recent</h2>
+      <button id="clearRecent" class="textlink btnlink" type="button">Clear</button>
+    </div>
+    <ul id="recent" class="recent"></ul>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
+<script>
+(() => {
+  const SF = 'https://api.scryfall.com';
+  const MATE = 'https://www.mtgmate.com.au';
+  const RECENT_KEY = 'mateLookup.recent';
+  const $ = (id) => document.getElementById(id);
+
+  const q = $('q'), suggest = $('suggest'), cam = $('cam'), statusEl = $('status');
+  const crop = $('crop'), cv = $('cropCanvas'), readBtn = $('read'), retakeBtn = $('retake');
+  const results = $('results'), resName = $('resName'), resSearch = $('resSearch');
+  const resTools = $('resTools'), filterEl = $('filter'), sortBtn = $('sort'), countEl = $('count'), printsEl = $('prints');
+  const recentWrap = $('recentWrap'), recentEl = $('recent'), clearRecentBtn = $('clearRecent');
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function setStatus(msg, kind) { statusEl.textContent = msg || ''; statusEl.dataset.kind = kind || ''; }
+
+  async function sf(pathOrUrl, signal) {
+    const url = pathOrUrl.startsWith('http') ? pathOrUrl : SF + pathOrUrl;
+    const r = await fetch(url, { headers: { Accept: 'application/json' }, signal });
+    const j = await r.json().catch(() => null);
+    if (!r.ok) {
+      const e = new Error((j && j.details) || ('Scryfall error ' + r.status));
+      e.status = r.status;
+      throw e;
+    }
+    return j;
+  }
+
+  /* ---------- Type-ahead ---------- */
+  let acCtl = null, acTimer = null;
+  q.addEventListener('input', () => {
+    clearTimeout(acTimer);
+    const v = q.value.trim();
+    if (v.length < 2) { hideSuggest(); return; }
+    acTimer = setTimeout(() => runAutocomplete(v), 220);
+  });
+  q.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = q.value.trim();
+      if (v) { hideSuggest(); q.blur(); resolveName(v); }
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!suggest.contains(e.target) && e.target !== q) hideSuggest();
+  });
+
+  async function runAutocomplete(v) {
+    if (acCtl) acCtl.abort();
+    acCtl = new AbortController();
+    try {
+      const j = await sf('/cards/autocomplete?q=' + encodeURIComponent(v), acCtl.signal);
+      showSuggest(j.data || []);
+    } catch (e) {
+      if (e.name !== 'AbortError') hideSuggest();
+    }
+  }
+  function showSuggest(names) {
+    suggest.innerHTML = '';
+    if (!names.length) { hideSuggest(); return; }
+    names.slice(0, 8).forEach((n) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = n;
+      b.addEventListener('click', () => {
+        q.value = n; hideSuggest(); q.blur(); loadPrintings(n);
+      });
+      li.appendChild(b);
+      suggest.appendChild(li);
+    });
+    suggest.hidden = false;
+  }
+  function hideSuggest() { suggest.hidden = true; suggest.innerHTML = ''; }
+
+  async function resolveName(text) {
+    setStatus('Looking up \u201C' + text + '\u201D\u2026');
+    try {
+      const c = await sf('/cards/named?fuzzy=' + encodeURIComponent(text));
+      await loadPrintings(c.name);
+    } catch (e) {
+      try {
+        const j = await sf('/cards/autocomplete?q=' + encodeURIComponent(text));
+        if (j.data && j.data.length) {
+          q.value = text;
+          showSuggest(j.data);
+          setStatus('Not sure which card that is. Pick one from the list.');
+          return;
+        }
+      } catch (_) { /* fall through */ }
+      q.value = text;
+      setStatus('No card matches \u201C' + text + '\u201D. Fix the name in the search box and press search.', 'error');
+    }
+  }
+
+  /* ---------- Printings ---------- */
+  let allPrints = [], oldestFirst = false;
+
+  async function loadPrintings(name) {
+    setStatus('Loading printings of ' + name + '\u2026');
+    const query = '!"' + name.replace(/"/g, '\\"') + '" game:paper';
+    const out = [];
+    try {
+      let j = await sf('/cards/search?unique=prints&order=released&dir=desc&q=' + encodeURIComponent(query));
+      out.push(...(j.data || []));
+      let pages = 1;
+      while (j.has_more && pages < 4) {
+        await sleep(100); // Scryfall asks for a short gap between requests
+        j = await sf(j.next_page);
+        out.push(...(j.data || []));
+        pages++;
+      }
+    } catch (e) {
+      setStatus(e.status === 404
+        ? 'No paper printings found for ' + name + '.'
+        : 'Couldn\u2019t reach Scryfall. Check your connection and try again.', 'error');
+      return;
+    }
+    allPrints = out;
+    filterEl.value = '';
+    resName.textContent = name;
+    resSearch.href = MATE + '/cards/search?q=' + encodeURIComponent(frontName({ name }));
+    resTools.hidden = allPrints.length <= 8;
+    setStatus('');
+    renderPrints();
+    results.hidden = false;
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function frontName(c) {
+    return (c.card_faces && c.card_faces[0] && c.card_faces[0].name) || c.name.split(' // ')[0];
+  }
+  function mateUrl(c, foil) {
+    const n = encodeURIComponent(frontName(c).replace(/ /g, '_')).replace(/%2C/g, ',');
+    return MATE + '/cards/' + n + '/' + encodeURIComponent(c.set.toUpperCase()) + '/' +
+      encodeURIComponent(c.collector_number) + (foil ? ':foil' : '');
+  }
+  function imgOf(c, size) {
+    return (c.image_uris && c.image_uris[size]) ||
+      (c.card_faces && c.card_faces[0] && c.card_faces[0].image_uris && c.card_faces[0].image_uris[size]) || '';
+  }
+  function variantNotes(c) {
+    const notes = [];
+    if (c.border_color === 'borderless') notes.push('borderless');
+    const fx = c.frame_effects || [];
+    if (fx.includes('showcase')) notes.push('showcase');
+    if (fx.includes('extendedart')) notes.push('extended art');
+    if (c.full_art) notes.push('full art');
+    if (c.promo) notes.push('promo');
+    if (c.lang && c.lang !== 'en') notes.push(c.lang.toUpperCase());
+    return notes;
+  }
+
+  function renderPrints() {
+    const f = filterEl.value.trim().toLowerCase();
+    let list = allPrints.filter((c) => !f ||
+      c.set_name.toLowerCase().includes(f) ||
+      c.set.toLowerCase() === f ||
+      (c.released_at || '').startsWith(f) ||
+      c.collector_number.toLowerCase() === f);
+    if (oldestFirst) list = list.slice().reverse();
+
+    countEl.textContent = list.length === allPrints.length
+      ? allPrints.length + (allPrints.length === 1 ? ' printing' : ' printings')
+      : list.length + ' of ' + allPrints.length + ' printings';
+
+    printsEl.innerHTML = '';
+    list.forEach((c) => {
+      const li = document.createElement('li');
+      li.className = 'print';
+
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.alt = c.name + ', ' + c.set_name;
+      img.src = imgOf(c, 'small');
+      img.addEventListener('click', () => {
+        const big = li.classList.toggle('big');
+        const src = imgOf(c, big ? 'normal' : 'small');
+        if (src) img.src = src;
+      });
+
+      const info = document.createElement('div');
+      const set = document.createElement('div');
+      set.className = 'pset';
+      set.textContent = c.set_name;
+      const meta = document.createElement('div');
+      meta.className = 'pmeta';
+      const year = (c.released_at || '').slice(0, 4);
+      const notes = variantNotes(c);
+      meta.textContent = c.set.toUpperCase() + ' #' + c.collector_number + ', ' + year +
+        (notes.length ? ', ' + notes.join(', ') : '');
+
+      const btns = document.createElement('div');
+      btns.className = 'pbtns';
+      const finishes = c.finishes || [];
+      if (finishes.includes('nonfoil')) btns.appendChild(mateLink(c, false, 'Nonfoil', 'primary'));
+      if (finishes.includes('foil')) btns.appendChild(mateLink(c, true, 'Foil', finishes.includes('nonfoil') ? 'ghost' : 'primary'));
+      if (!finishes.includes('nonfoil') && !finishes.includes('foil')) {
+        const a = document.createElement('a');
+        a.className = 'btn small ghost';
+        a.textContent = 'Search MTG Mate';
+        a.href = MATE + '/cards/search?q=' + encodeURIComponent(frontName(c));
+        a.target = '_blank'; a.rel = 'noopener';
+        btns.appendChild(a);
+      }
+
+      info.append(set, meta, btns);
+      li.append(img, info);
+      printsEl.appendChild(li);
+    });
+  }
+
+  function mateLink(c, foil, label, style) {
+    const a = document.createElement('a');
+    a.className = 'btn small ' + style;
+    a.textContent = label;
+    a.href = mateUrl(c, foil);
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.addEventListener('click', () => addRecent(c, foil, a.href));
+    return a;
+  }
+
+  filterEl.addEventListener('input', renderPrints);
+  sortBtn.addEventListener('click', () => {
+    oldestFirst = !oldestFirst;
+    sortBtn.textContent = oldestFirst ? 'Newest first' : 'Oldest first';
+    renderPrints();
+  });
+
+  /* ---------- Recent ---------- */
+  function loadRecent() {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch (_) { return []; }
+  }
+  function saveRecent(list) {
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 30))); } catch (_) { /* storage unavailable */ }
+  }
+  function addRecent(c, foil, url) {
+    const list = loadRecent().filter((x) => x.url !== url);
+    list.unshift({ name: frontName(c), set: c.set.toUpperCase(), cn: c.collector_number, foil, url });
+    saveRecent(list);
+    renderRecent();
+  }
+  function renderRecent() {
+    const list = loadRecent();
+    recentWrap.hidden = !list.length;
+    recentEl.innerHTML = '';
+    list.forEach((x) => {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = x.url; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = x.name;
+      const s = document.createElement('span');
+      s.textContent = x.set + ' #' + x.cn + (x.foil ? ', foil' : '');
+      li.append(a, s);
+      recentEl.appendChild(li);
+    });
+  }
+  clearRecentBtn.addEventListener('click', () => { saveRecent([]); renderRecent(); });
+
+  /* ---------- Photo and crop ---------- */
+  let photo = null, base = null, cssW = 0, cssH = 0, rect = null, dragStart = null;
+
+  cam.addEventListener('change', async () => {
+    const file = cam.files && cam.files[0];
+    if (!file) return;
+    const im = new Image();
+    im.src = URL.createObjectURL(file);
+    try { await im.decode(); } catch (_) {
+      setStatus('Couldn\u2019t open that photo. Try again.', 'error');
+      return;
+    } finally { cam.value = ''; }
+    if (photo) URL.revokeObjectURL(photo.src);
+    photo = im;
+    rect = null;
+    readBtn.disabled = true;
+    setStatus('');
+    crop.hidden = false;
+    layoutCrop();
+    crop.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    warmOcr();
+  });
+
+  retakeBtn.addEventListener('click', () => cam.click());
+
+  function layoutCrop() {
+    const maxW = crop.clientWidth || 360;
+    const maxH = Math.round(window.innerHeight * 0.62);
+    const s = Math.min(maxW / photo.naturalWidth, maxH / photo.naturalHeight);
+    cssW = Math.round(photo.naturalWidth * s);
+    cssH = Math.round(photo.naturalHeight * s);
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.style.width = cssW + 'px';
+    cv.style.height = cssH + 'px';
+    cv.width = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    // Pre-scale once so redraws during dragging stay smooth
+    base = document.createElement('canvas');
+    base.width = cv.width;
+    base.height = cv.height;
+    base.getContext('2d').drawImage(photo, 0, 0, base.width, base.height);
+    redraw();
+  }
+
+  function redraw() {
+    const ctx = cv.getContext('2d');
+    const k = cv.width / cssW;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(base, 0, 0);
+    if (!rect || rect.w < 2 || rect.h < 2) return;
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.beginPath();
+    ctx.rect(0, 0, cssW, cssH);
+    ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fill('evenodd');
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#1F7A4D';
+    ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  }
+
+  function pt(e) {
+    const b = cv.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(b.width, e.clientX - b.left)),
+      y: Math.max(0, Math.min(b.height, e.clientY - b.top)),
+    };
+  }
+  cv.addEventListener('pointerdown', (e) => {
+    cv.setPointerCapture(e.pointerId);
+    dragStart = pt(e);
+    rect = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 };
+    redraw();
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!dragStart) return;
+    const p = pt(e);
+    rect = {
+      x: Math.min(p.x, dragStart.x), y: Math.min(p.y, dragStart.y),
+      w: Math.abs(p.x - dragStart.x), h: Math.abs(p.y - dragStart.y),
+    };
+    redraw();
+  });
+  const endDrag = () => {
+    dragStart = null;
+    readBtn.disabled = !(rect && rect.w > 15 && rect.h > 6);
+  };
+  cv.addEventListener('pointerup', endDrag);
+  cv.addEventListener('pointercancel', endDrag);
+  window.addEventListener('resize', () => { if (photo && !crop.hidden) { rect = null; readBtn.disabled = true; layoutCrop(); } });
+
+  /* ---------- OCR ---------- */
+  let worker = null, workerLoading = null;
+  function getWorker() {
+    if (worker) return Promise.resolve(worker);
+    if (!workerLoading) {
+      workerLoading = (async () => {
+        if (!window.Tesseract) throw new Error('OCR library not loaded');
+        const w = await Tesseract.createWorker('eng', 1);
+        await w.setParameters({
+          tessedit_pageseg_mode: '7', // a single line of text
+          tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ,'-",
+          preserve_interword_spaces: '1',
+        });
+        worker = w;
+        return w;
+      })().catch((e) => { workerLoading = null; throw e; });
+    }
+    return workerLoading;
+  }
+  function warmOcr() { getWorker().catch(() => {}); }
+
+  // Crop from the full-resolution photo, normalise contrast, flip light-on-dark text
+  function prepCrop() {
+    const s = photo.naturalWidth / cssW;
+    const sx = rect.x * s, sy = rect.y * s, sw = rect.w * s, sh = rect.h * s;
+    let k = 110 / sh;
+    if (sw * k > 2000) k = 2000 / sw;
+    const w = Math.max(1, Math.round(sw * k)), h = Math.max(1, Math.round(sh * k));
+
+    const tmp = document.createElement('canvas');
+    tmp.width = w; tmp.height = h;
+    const tctx = tmp.getContext('2d', { willReadFrequently: true });
+    tctx.imageSmoothingQuality = 'high';
+    tctx.drawImage(photo, sx, sy, sw, sh, 0, 0, w, h);
+    const id = tctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    let min = 255, max = 0, sum = 0;
+    const lum = new Float32Array(w * h);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      lum[p] = v; sum += v;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    const invert = sum / lum.length < 110;
+    const range = Math.max(1, max - min);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      let v = ((lum[p] - min) / range) * 255;
+      if (invert) v = 255 - v;
+      d[i] = d[i + 1] = d[i + 2] = v;
+    }
+    tctx.putImageData(id, 0, 0);
+
+    const pad = 16;
+    const out = document.createElement('canvas');
+    out.width = w + pad * 2; out.height = h + pad * 2;
+    const octx = out.getContext('2d');
+    octx.fillStyle = '#fff';
+    octx.fillRect(0, 0, out.width, out.height);
+    octx.drawImage(tmp, pad, pad);
+    return out;
+  }
+
+  function cleanOcr(t) {
+    return (t || '')
+      .replace(/\s+/g, ' ')
+      .replace(/[^A-Za-z ,'\-]/g, '')
+      .replace(/^[ ,'\-]+|[ ,'\-]+$/g, '')
+      .trim();
+  }
+
+  readBtn.addEventListener('click', async () => {
+    if (!rect) return;
+    readBtn.disabled = true;
+    setStatus(worker ? 'Reading the name\u2026' : 'Loading text reader (first time only)\u2026');
+    let text = '';
+    try {
+      const canvas = prepCrop();
+      const w = await getWorker();
+      setStatus('Reading the name\u2026');
+      const { data } = await w.recognize(canvas);
+      text = cleanOcr(data.text);
+    } catch (_) {
+      setStatus('The text reader didn\u2019t load. Check your connection, or type the name instead.', 'error');
+      readBtn.disabled = false;
+      return;
+    }
+    if (text.length < 3) {
+      setStatus('Couldn\u2019t read a name. Box just the name, or tilt the card to cut glare.', 'error');
+      readBtn.disabled = false;
+      return;
+    }
+    crop.hidden = true;
+    q.value = text;
+    await resolveName(text);
+  });
+
+  renderRecent();
+})();
+</script>
+</body>
+</html>
